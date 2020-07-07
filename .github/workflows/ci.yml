@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: use checkout
+        uses: actions/checkout@v2
+
+      - name: code checkout
+        run: |
+          git clone https://github.com/jkachmar/example-cabal-project
+          git clone https://github.com/jared-w/hello-vue.git
+
+      - name: haskell setup
+        uses: actions/setup-haskell@v1
+        with:
+          ghc-version: '8.6.5'
+          cabal-version: '3.0'
+
+      - name: cabal setup
+        working-directory: example-cabal-project
+        run: |
+          sed -i '22d' example-cabal-project.cabal
+          cabal configure
+          cabal build
+
+      - name: npm setup
+        uses: actions/setup-node@v1
+
+      - name: npm setup install
+        working-directory: hello-vue
+        run: npm install
+
+      - name: cabal test
+        working-directory: example-cabal-project
+        run: |
+            cabal test all
+            cabal run
+
+      - name: npm test
+        working-directory: hello-vue
+        run: |
+          npm run test:unit
+
+  dockerfile-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: use checkout
+        uses: actions/checkout@v2
+
+      - name: code checkout
+        run: |
+          git clone https://github.com/jkachmar/example-cabal-project
+          git clone https://github.com/jared-w/hello-vue.git
+
+      - name: write cabal dockerfile
+        uses: DamianReeves/write-file-action@master
+        with:
+          path: example-cabal-project/Dockerfile.haskell
+          contents: |
+            FROM marcelhuberfoo/cabal-build
+            USER root
+            ADD . /data
+            WORKDIR "/data"
+
+            RUN pacman -Syyu --noconfirm && \
+                pacman-db-upgrade && \
+                pacman -S --noconfirm ghc-static
+
+            RUN cabal update
+            RUN cabal configure
+            RUN cabal build
+            RUN cabal test all
+          write-mode: overwrite
+          
+      - name: cabal build docker image
+        working-directory: example-cabal-project
+        run: |
+          sed -i '22d' example-cabal-project.cabal
+          docker build -t cabal_test_image -f Dockerfile.haskell .
+
+      - name: cabal test docker container
+        run: |
+          docker run cabal_test_image /bin/sh -c 'cd /data ; cabal run'
+          
+      - name: write npm dockerfile
+        uses: DamianReeves/write-file-action@master
+        with:
+          path: hello-vue/Dockerfile.vue
+          contents: |
+            FROM node:12
+            
+            USER root
+            ADD . /usr/src/app
+            WORKDIR "/usr/src/app"
+
+            RUN npm install
+          write-mode: overwrite
+
+      - name: npm build docker image
+        working-directory: hello-vue
+        run: docker build -t vue_test_image -f Dockerfile.vue .
+
+      - name: npm test docker container
+        working-directory: hello-vue
+        run: |
+          docker run vue_test_image /bin/sh -c 'cd /usr/src/app ; npm run test:unit'
