@@ -1,3 +1,5 @@
+![](https://github.com/abby-embree/takehome/workflows/CI/badge.svg)
+
 Hey there! This is my cool thing that I built. Someday it might be a super cool full-stack app but for now it's mostly boilerplate.
 
 # bootstrapping
