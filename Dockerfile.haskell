@@ -1,1 +1,13 @@
-# TODO
+FROM marcelhuberfoo/cabal-build
+USER root
+ADD . /data
+WORKDIR "/data"
+
+RUN pacman -Syyu --noconfirm && \
+  pacman-db-upgrade && \
+  pacman -S --noconfirm ghc-static
+
+RUN cabal update
+RUN cabal configure
+RUN cabal build
+RUN cabal test all
